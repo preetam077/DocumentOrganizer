@@ -43,7 +43,7 @@ supported_extensions = {
 }
 
 # Base directory to scan
-base_path = r'C:\Users\support2\Developments'
+base_path = r'#TheDirectoryYouWantToScan#'
 
 # List to hold paths of supported documents
 supported_files: List[str] = []
@@ -198,5 +198,6 @@ try:
     print(f"Output saved to {llm_output_file}")
 except Exception as e:
     print(f"Error saving {llm_output_file}: {str(e)}")
+
 
 print("\nProcessing complete.")
