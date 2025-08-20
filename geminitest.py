@@ -17,7 +17,7 @@ model = genai.GenerativeModel('gemini-2.5-flash') # Using a capable model for JS
 
 # The root directory where you want the new folder structure to be created.
 # '.' means the current directory where the script is running.
-DESTINATION_ROOT = '#TheDirectyWhereYouWantToPerformAction#'
+DESTINATION_ROOT = '#TheDirectyWhereYouWantToPerformAction#' #eg. C:\\Users\\support2\\OrganizedDocuments3
 
 # --- Main Functions ---
 
@@ -173,3 +173,4 @@ if __name__ == "__main__":
             else:
 
                 print("Operation cancelled by user.")
+
