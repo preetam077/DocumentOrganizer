@@ -1,5 +1,3 @@
-
-
 import os
 import json
 from typing import List, Dict
@@ -13,7 +11,9 @@ from nltk.tokenize import sent_tokenize
 import nltk
 import warnings
 from torch.utils.data import dataloader
-from sklearn.metrics.pairwise import cosine_similarity
+import time
+from collections import defaultdict
+import uuid
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -32,11 +32,15 @@ except LookupError:
 # Check for OCR dependencies
 try:
     import easyocr
+    ocr_easyocr_available = True
 except ImportError:
+    ocr_easyocr_available = False
     print("Warning: easyocr not installed. Install with 'pip install docling[easyocr]' for OCR support.")
 try:
     import pytesseract
+    ocr_pytesseract_available = True
 except ImportError:
+    ocr_pytesseract_available = False
     print("Warning: pytesseract not installed. Install with 'pip install docling[tesseract]' and Tesseract binary for OCR support.")
 
 # Supported file extensions
@@ -47,10 +51,21 @@ supported_extensions = {
 }
 
 # Base directory to scan
-base_path = r'PutYourDirectoryHere' #eg. C:\Users\support2\Developments
+base_path = r'PutYourDirectoryHere' #eg. C:\Users\Goku\Developments
 
 # List to hold paths of supported documents
 supported_files: List[str] = []
+
+# KPI tracking variables
+processing_times: List[float] = []
+error_count: int = 0
+successful_count: int = 0
+ocr_eligible_files: List[str] = []
+ocr_processed_files: List[str] = []
+file_types_processed: set = set()
+summary_lengths: List[int] = []
+cosine_similarities: List[float] = []
+output_files_success: List[str] = []
 
 # Step 1: Scan directory
 print("Scanning for documents supported by Docling...")
@@ -60,8 +75,10 @@ for root, _, files in os.walk(base_path):
         if ext in supported_extensions:
             file_path = os.path.join(root, file)
             supported_files.append(file_path)
+            file_types_processed.add(ext)
             print(f"Found: {file_path}")
             if ext in {'.png', '.tiff', '.jpeg', '.jpg', '.gif', '.bmp', '.pdf'}:
+                ocr_eligible_files.append(file_path)
                 print(f"  -> OCR may be applied for this file.")
 
 print(f"\nTotal supported documents found: {len(supported_files)}")
@@ -91,7 +108,9 @@ def generate_summary(text: str, doc_embedding: np.ndarray, max_sentences: int = 
                 return "No meaningful text content extracted from table."
             # Take headers and a few rows, focusing on text content
             summary_lines = lines[:max_sentences]
-            return f"Table summary: {'; '.join(summary_lines)}..."
+            summary = f"Table summary: {'; '.join(summary_lines)}..."
+            summary_lengths.append(len(summary.split()))
+            return summary
         else:
             # Sentence-based summary for non-tabular data
             sentences = sent_tokenize(text)
@@ -99,9 +118,11 @@ def generate_summary(text: str, doc_embedding: np.ndarray, max_sentences: int = 
                 return "No sentences detected for summary."
             sentence_embeddings = embed_model.encode(sentences)
             similarities = cosine_similarity([doc_embedding], sentence_embeddings)[0]
+            cosine_similarities.extend(similarities.tolist())
             top_indices = np.argsort(similarities)[-max_sentences:]
             top_sentences = [sentences[i] for i in sorted(top_indices) if similarities[i] > 0.1]
             summary = " ".join(top_sentences)
+            summary_lengths.append(len(summary.split()))
             return summary if summary else "Unable to generate summary due to low similarity."
     except Exception as e:
         print(f"  -> Error generating summary: {str(e)}")
@@ -133,6 +154,7 @@ def extract_excel_text(file_path: str) -> str:
 # Process documents
 print("\nProcessing supported documents...")
 for file_path in supported_files:
+    start_time = time.time()
     print(f"Processing: {file_path}")
     try:
         ext = os.path.splitext(file_path)[1].lower()
@@ -150,6 +172,8 @@ for file_path in supported_files:
         else:
             # Use docling for other formats
             conv_res = converter.convert(file_path)
+            if file_path in ocr_eligible_files and (ocr_easyocr_available or ocr_pytesseract_available):
+                ocr_processed_files.append(file_path)
             if conv_res.document is not None:
                 doc: DoclingDocument = conv_res.document
 
@@ -193,24 +217,63 @@ for file_path in supported_files:
 
         output_data.append(doc_dict)
         llm_input_data.append(llm_dict)
+        successful_count += 1
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
+        error_count += 1
+    finally:
+        processing_times.append(time.time() - start_time)
 
 # Save output
-output_file = 'processed_documents.json' #give this file whatever name you want (this for analysis)
+output_file = 'processed_documents.json'
 try:
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(output_data, f, ensure_ascii=False, indent=4)
     print(f"\nOutput saved to {output_file}")
+    output_files_success.append(output_file)
 except Exception as e:
     print(f"Error saving {output_file}: {str(e)}")
 
-llm_output_file = 'llm_input.json' #give this file whatever name you want (this is fed to the AI)
+llm_output_file = 'llm_input.json'
 try:
     with open(llm_output_file, 'w', encoding='utf-8') as f:
         json.dump(llm_input_data, f, ensure_ascii=False, indent=4)
     print(f"Output saved to {llm_output_file}")
+    output_files_success.append(llm_output_file)
 except Exception as e:
     print(f"Error saving {llm_output_file}: {str(e)}")
 
-print("\nProcessing complete.")
+# Calculate KPIs
+kpi_report = {
+    "document_processing_success_rate": (successful_count / len(supported_files) * 100) if supported_files else 0.0,
+    "processing_time_per_document_seconds": (sum(processing_times) / len(processing_times)) if processing_times else 0.0,
+    "summary_quality_score": (sum(summary_lengths) / len(summary_lengths)) if summary_lengths else 0.0,  # Proxy: avg words in summary
+    "embedding_quality_cosine_similarity": (sum(cosine_similarities) / len(cosine_similarities)) if cosine_similarities else 0.0,
+    "file_type_coverage": (len(file_types_processed) / len(supported_extensions) * 100) if supported_extensions else 0.0,
+    "error_rate": (error_count / len(supported_files) * 100) if supported_files else 0.0,
+    "ocr_utilization_rate": (len(ocr_processed_files) / len(ocr_eligible_files) * 100) if ocr_eligible_files else 0.0,
+    "output_file_integrity": (len(output_files_success) / 2 * 100)  # Expect 2 output files
+}
+
+# Save KPI report
+kpi_output_file = 'summarygeneratorkpi.json'
+try:
+    with open(kpi_output_file, 'w', encoding='utf-8') as f:
+        json.dump(kpi_report, f, ensure_ascii=False, indent=4)
+    print(f"\nKPI report saved to {kpi_output_file}")
+except Exception as e:
+    print(f"Error saving {kpi_output_file}: {str(e)}")
+
+# Print KPI report
+print("\n=== KPI Report ===")
+print(f"Document Processing Success Rate: {kpi_report['document_processing_success_rate']:.2f}%")
+print(f"Average Processing Time per Document: {kpi_report['processing_time_per_document_seconds']:.2f} seconds")
+print(f"Summary Quality Score (Avg Words): {kpi_report['summary_quality_score']:.2f}")
+#print(f"Embedding Quality (Avg Cosine Similarity): {kpi_report['embedding_quality_cosine_similarity']:.2f}")
+#print(f"File Type Coverage: {kpi_report['file_type_coverage']:.2f}%")
+print(f"Error Rate: {kpi_report['error_rate']:.2f}%")
+print(f"OCR Utilization Rate: {kpi_report['ocr_utilization_rate']:.2f}%")
+print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
+print("=================\n")
+
+print("Processing complete.")
