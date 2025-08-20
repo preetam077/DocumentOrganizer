@@ -1,15 +1,19 @@
+
+
 import os
 import json
 from typing import List, Dict
+import pandas as pd
 from docling.document_converter import DocumentConverter
 from docling_core.types.doc import DoclingDocument
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-import nltk
 from nltk.tokenize import sent_tokenize
+import nltk
 import warnings
 from torch.utils.data import dataloader
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -18,7 +22,7 @@ warnings.filterwarnings("ignore",
     module=dataloader.__name__
 )
 
-# Download NLTK data for sentence tokenization
+# Download NLTK data
 try:
     nltk.data.find('tokenizers/punkt_tab')
 except LookupError:
@@ -35,7 +39,7 @@ try:
 except ImportError:
     print("Warning: pytesseract not installed. Install with 'pip install docling[tesseract]' and Tesseract binary for OCR support.")
 
-# Define supported file extensions based on Docling's capabilities
+# Supported file extensions
 supported_extensions = {
     '.pdf', '.docx', '.pptx', '.xlsx', '.html',
     '.png', '.tiff', '.jpeg', '.jpg', '.gif', '.bmp',
@@ -43,12 +47,12 @@ supported_extensions = {
 }
 
 # Base directory to scan
-base_path = r'#TheDirectoryYouWantToScan#'
+base_path = r'PutYourDirectoryHere' #eg. C:\Users\support2\Developments
 
 # List to hold paths of supported documents
 supported_files: List[str] = []
 
-# Step 1: Scan directory and print supported documents
+# Step 1: Scan directory
 print("Scanning for documents supported by Docling...")
 for root, _, files in os.walk(base_path):
     for file in files:
@@ -60,129 +64,140 @@ for root, _, files in os.walk(base_path):
             if ext in {'.png', '.tiff', '.jpeg', '.jpg', '.gif', '.bmp', '.pdf'}:
                 print(f"  -> OCR may be applied for this file.")
 
-# Print summary
 print(f"\nTotal supported documents found: {len(supported_files)}")
 if not supported_files:
     print("No supported documents found. Exiting.")
     exit()
 
-# Step 2: Process the documents
-# Load the embedding model
+# Load embedding model
 embed_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Initialize the document converter (reusable)
+# Initialize document converter
 converter = DocumentConverter()
 
-# Lists to hold processed document data
-output_data: List[Dict] = []  # For processed_documents.json
-llm_input_data: List[Dict] = []  # For llm_input.json
+# Output lists
+output_data: List[Dict] = []
+llm_input_data: List[Dict] = []
 
-# Function to generate a summary from text using embeddings
-def generate_summary(text: str, doc_embedding: np.ndarray, max_sentences: int = 3) -> str:
+# Function to generate summary
+def generate_summary(text: str, doc_embedding: np.ndarray, max_sentences: int = 5, is_table: bool = False) -> str:
     if not text.strip():
         return "No content available for summary."
     try:
-        # Split text into sentences
-        sentences = sent_tokenize(text)
-        if not sentences:
-            return "No sentences detected for summary."
-        
-        # Compute embeddings for each sentence
-        sentence_embeddings = embed_model.encode(sentences)
-        
-        # Compute cosine similarity between document embedding and sentence embeddings
-        similarities = cosine_similarity([doc_embedding], sentence_embeddings)[0]
-        
-        # Select top sentences based on similarity
-        top_indices = np.argsort(similarities)[-max_sentences:]
-        top_sentences = [sentences[i] for i in sorted(top_indices) if similarities[i] > 0.1]  # Filter low-similarity sentences
-        
-        # Combine sentences into a summary
-        summary = " ".join(top_sentences)
-        return summary if summary else "Unable to generate summary due to low similarity."
+        if is_table:
+            # For tabular data, create a concise summary of headers and sample rows
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            if not lines:
+                return "No meaningful text content extracted from table."
+            # Take headers and a few rows, focusing on text content
+            summary_lines = lines[:max_sentences]
+            return f"Table summary: {'; '.join(summary_lines)}..."
+        else:
+            # Sentence-based summary for non-tabular data
+            sentences = sent_tokenize(text)
+            if not sentences:
+                return "No sentences detected for summary."
+            sentence_embeddings = embed_model.encode(sentences)
+            similarities = cosine_similarity([doc_embedding], sentence_embeddings)[0]
+            top_indices = np.argsort(similarities)[-max_sentences:]
+            top_sentences = [sentences[i] for i in sorted(top_indices) if similarities[i] > 0.1]
+            summary = " ".join(top_sentences)
+            return summary if summary else "Unable to generate summary due to low similarity."
     except Exception as e:
         print(f"  -> Error generating summary: {str(e)}")
-        return "Summary generation failed due to tokenization error."
+        return "Summary generation failed."
 
-# Process each supported file
+# Function to extract text from Excel using pandas
+def extract_excel_text(file_path: str) -> str:
+    try:
+        xl = pd.ExcelFile(file_path)
+        all_text = []
+        for sheet_name in xl.sheet_names:
+            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            # Convert all cells to strings, handling NaN and other types
+            df = df.astype(str).replace('nan', '').replace('', 'None')
+            # Extract headers
+            headers = ", ".join(df.columns.tolist())
+            all_text.append(f"Sheet: {sheet_name}")
+            all_text.append(f"Headers: {headers}")
+            # Extract cell values (all rows, but join as comma-separated for summary)
+            for _, row in df.iterrows():
+                row_text = ", ".join([val for val in row if val != 'None'])
+                if row_text:
+                    all_text.append(row_text)
+        return "\n".join(all_text)
+    except Exception as e:
+        print(f"  -> Error reading Excel file {file_path} with pandas: {str(e)}")
+        return ""
+
+# Process documents
 print("\nProcessing supported documents...")
 for file_path in supported_files:
     print(f"Processing: {file_path}")
     try:
-        # Convert the document
-        conv_res = converter.convert(file_path)
-        
-        # Check if conversion was successful
-        if conv_res.document is not None:
-            doc: DoclingDocument = conv_res.document
-            
-            # Create dictionaries for both JSON files
-            doc_dict: Dict = {
-                'file_path': file_path,
-                'file_type': os.path.splitext(file_path)[1].lower(),
-                'summary': "",
-                'embedding': []
-            }
-            llm_dict: Dict = {
-                'file_path': file_path,
-                'file_type': os.path.splitext(file_path)[1].lower(),
-                'summary': ""
-            }
-            
-            # Extract metadata
-            metadata = doc.model_dump().get('metadata', {})
-            if isinstance(metadata, dict):
-                if 'title' in metadata:
-                    doc_dict['title'] = str(metadata['title'])
-                    llm_dict['title'] = str(metadata['title'])
-                if 'author' in metadata:
-                    doc_dict['author'] = str(metadata['author'])
-                    llm_dict['author'] = str(metadata['author'])
-                if 'creation_date' in metadata:
-                    doc_dict['creation_date'] = str(metadata['creation_date'])
-                    llm_dict['creation_date'] = str(metadata['creation_date'])
-            
-            # Extract all text for embedding and summarization
-            all_text: List[str] = [item.text for item in doc.texts if item.text]
-            string_cell_detected = False
-            
-            # Extract table content
-            for table in doc.tables:
-                for row in table.data:
-                    for cell in row:
-                        # Handle both string cells (e.g., .xlsx, some .pdf/.docx) and objects
-                        cell_text = cell if isinstance(cell, str) else getattr(cell, 'text', '')
-                        if isinstance(cell, str) and not string_cell_detected:
-                            print(f"  -> String cells detected in tables for {file_path}")
-                            string_cell_detected = True
-                        if cell_text:
-                            all_text.append(cell_text)
-            
-            # Join all text
-            full_text = "\n".join([t for t in all_text if t]).strip()
-            
-            # Generate embedding and summary
-            if full_text:
-                doc_embedding = embed_model.encode(full_text)
-                doc_dict['embedding'] = doc_embedding.tolist()
-                summary = generate_summary(full_text, doc_embedding)
-                doc_dict['summary'] = summary
-                llm_dict['summary'] = summary
-            else:
-                doc_dict['summary'] = "No content available for summary."
-                llm_dict['summary'] = "No content available for summary."
-            
-            # Append to output lists
-            output_data.append(doc_dict)
-            llm_input_data.append(llm_dict)
+        ext = os.path.splitext(file_path)[1].lower()
+        doc_dict: Dict = {'file_path': file_path, 'file_type': ext, 'summary': "", 'embedding': []}
+        llm_dict: Dict = {'file_path': file_path, 'file_type': ext, 'summary': ""}
+
+        all_text: List[str] = []
+
+        if ext == '.xlsx':
+            # Always use pandas for .xlsx files to ensure reliable text extraction
+            print(f"  -> Using pandas to extract content from {file_path}")
+            excel_text = extract_excel_text(file_path)
+            if excel_text:
+                all_text.append(excel_text)
         else:
-            print(f"Conversion failed for {file_path}")
+            # Use docling for other formats
+            conv_res = converter.convert(file_path)
+            if conv_res.document is not None:
+                doc: DoclingDocument = conv_res.document
+
+                # Extract metadata
+                metadata = doc.model_dump().get('metadata', {})
+                if isinstance(metadata, dict):
+                    if 'title' in metadata:
+                        doc_dict['title'] = str(metadata['title'])
+                        llm_dict['title'] = str(metadata['title'])
+                    if 'author' in metadata:
+                        doc_dict['author'] = str(metadata['author'])
+                        llm_dict['author'] = str(metadata['author'])
+                    if 'creation_date' in metadata:
+                        doc_dict['creation_date'] = str(metadata['creation_date'])
+                        llm_dict['creation_date'] = str(metadata['creation_date'])
+
+                # Extract text items
+                all_text.extend(item.text for item in doc.texts if item.text)
+
+                # Extract table content (only text)
+                for table in doc.tables:
+                    for row in table.data:
+                        for cell in row:
+                            cell_text = getattr(cell, 'text', str(cell)) if not isinstance(cell, str) else cell
+                            if cell_text:
+                                all_text.append(cell_text)
+
+        # Join all text
+        full_text = "\n".join([t for t in all_text if t]).strip()
+
+        # Generate embedding and summary
+        if full_text:
+            doc_embedding = embed_model.encode(full_text)
+            doc_dict['embedding'] = doc_embedding.tolist()
+            summary = generate_summary(full_text, doc_embedding, is_table=(ext == '.xlsx'))
+            doc_dict['summary'] = summary
+            llm_dict['summary'] = summary
+        else:
+            doc_dict['summary'] = "No content available for summary."
+            llm_dict['summary'] = "No content available for summary."
+
+        output_data.append(doc_dict)
+        llm_input_data.append(llm_dict)
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
 
-# Save the output to two JSON files
-# 1. processed_documents.json (includes embeddings)
-output_file = 'processed_documents_existing.json'
+# Save output
+output_file = 'processed_documents.json' #give this file whatever name you want (this for analysis)
 try:
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(output_data, f, ensure_ascii=False, indent=4)
@@ -190,14 +205,12 @@ try:
 except Exception as e:
     print(f"Error saving {output_file}: {str(e)}")
 
-# 2. llm_input.json (excludes embeddings)
-llm_output_file = 'llm_input.json'
+llm_output_file = 'llm_input.json' #give this file whatever name you want (this is fed to the AI)
 try:
     with open(llm_output_file, 'w', encoding='utf-8') as f:
         json.dump(llm_input_data, f, ensure_ascii=False, indent=4)
     print(f"Output saved to {llm_output_file}")
 except Exception as e:
     print(f"Error saving {llm_output_file}: {str(e)}")
-
 
 print("\nProcessing complete.")
