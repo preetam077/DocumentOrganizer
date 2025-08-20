@@ -57,7 +57,7 @@ def create_file_path_map(document_data):
     return path_map
 
 def get_organization_plan_from_ai(document_data):
-    """Sends document info to the AI and requests a file organization plan in JSON format."""
+    """Sends document info to the AI and requests a file organization plan with a file tree."""
     global ai_plan_valid, errors_encountered, api_response_time, tokens_used
     documents_str = "\n".join([
         f"- File: {os.path.basename(doc['file_path'])}\n  Summary: {doc['summary']}\n"
@@ -65,56 +65,99 @@ def get_organization_plan_from_ai(document_data):
     ])
 
     prompt = f"""
-    You are an expert file organization assistant. Your task is to organize the files listed below into a logical folder structure.
+    You are an expert file organization assistant. Your task is to organize the files listed below into a logical folder structure and provide both a JSON plan and an ASCII file tree representation.
 
-    Analyze the following file summaries and create a file tree plan. The plan should group files by project, year, topic, or other relevant criteria.
+    Analyze the following file summaries and create a file organization plan. The plan should group files by project, year, topic, or other relevant criteria.
 
     **File Information:**
     {documents_str}
 
     **Instructions:**
-    Respond ONLY with a valid JSON object. Do not include any text, explanations, or markdown formatting before or after the JSON block.
-    The JSON object should be a dictionary where:
-    - Each key is the proposed new directory path (e.g., "Case_Studies/2020_Grimmen_Vegetation").
-    - Each value is a list of the filenames (e.g., ["Case Study_Cutting Vegetation_2020.docx", "Fassade nach Cutting.png"]) that should be moved into that directory.
+    Respond ONLY with a single output containing two sections, separated clearly. Do not include any additional text, explanations, or markdown formatting outside the specified structure.
 
-    Example of desired output format:
+    1. **JSON Plan**:
+       - A JSON object where each key is the proposed new directory path (e.g., "Case_Studies/2020_Grimmen_Vegetation").
+       - Each value is a list of filenames (e.g., ["Case Study_Cutting Vegetation_2020.docx", "Fassade nach Cutting.png"]) to be moved into that directory.
+       - Use forward slashes (/) for directory paths.
+       - Example:
+        ```json
+        {{
+          " Case_Studies/2018_Cadolzburg_Degradation": [
+            "Case Study_Cadolzburg_v1.docx",
+            "ZAE_Modulliste.pdf"
+          ],
+          "Case_Studies/2019_Umrath_Performance": [
+            "Plant Performance Report.docx",
+            "Plant Performance Report_2019-08-16.docx",
+            "Use case Umrath.xlsx"
+          ]
+        }}
+        ```
+
+    2. **ASCII File Tree**:
+       - After the JSON, include a line with exactly "-----" to separate sections.
+       - Then, provide an ASCII file tree representation of the same structure, listing all directories and files.
+       - Use ├── for branches, └── for the last item in a directory, and │   for vertical alignment.
+       - Indent subdirectories and files appropriately (e.g., two spaces per level).
+       - Example:
+         ```
+         -----
+         Case_Studies/
+         ├── 2018_Cadolzburg/
+         │   ├── Case Study_Cadolzburg_v1.docx
+         │   └── ZAE_Modulliste.pdf
+         ├── 2020_Grimmen_Vegetation/
+         │   ├── Case Study_Cutting Vegetation_2020.docx
+         │   └── Fassade nach Cutting.png
+         ```
+
+    **Output Format**:
+    ```json
     {{
-      "Case_Studies/2018_Cadolzburg_Degradation": [
+      "Case_Studies/2018_Cadolzburg": [
         "Case Study_Cadolzburg_v1.docx",
         "ZAE_Modulliste.pdf"
       ],
-      "Case_Studies/2019_Umrath_Performance": [
-        "Plant Performance Report.docx",
-        "Plant Performance Report_2019-08-16.docx",
-        "Use case Umrath.xlsx"
-      ]
+      ...
     }}
+    -----
+    Case_Studies/
+      ├── 2018_Cadolzburg/
+      │   ├── Case Study_Cadolzburg_v1.docx
+      │   └── ZAE_Modulliste.pdf
+      ...
+    ```
+
+    Ensure all files from the input are included in both the JSON and the file tree, with consistent directory structures.
     """
 
-    print("Asking the AI to generate an organization plan... (This may take a moment)")
+    print("Asking the AI to generate an organization plan and file tree... (This may take a moment)")
     try:
         start_api_time = time.time()
         response = model.generate_content(prompt)
         api_response_time = time.time() - start_api_time
-        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
-        plan = json.loads(cleaned_response)
+        response_text = response.text.strip().replace('```json', '').replace('```', '')
+
+        # Split the response into JSON and file tree
+        json_part, file_tree = response_text.split('-----', 1)
+        json_part = json_part.strip()
+        file_tree = file_tree.strip()
+
+        # Parse the JSON plan
+        plan = json.loads(json_part)
         ai_plan_valid = True
         # Estimate tokens (fallback if API metadata unavailable)
-        # Rough estimate: 1 token ≈ 4 characters in English text
         input_tokens = len(prompt) // 4
-        output_tokens = len(cleaned_response) // 4
+        output_tokens = len(response_text) // 4
         tokens_used = input_tokens + output_tokens
-        # Note: If API provides token counts (e.g., response.usage_metadata), use that instead:
-        # tokens_used = response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else tokens_used
-        return plan
+        return plan, file_tree
     except (json.JSONDecodeError, Exception) as e:
         print(f"\n--- Error ---")
-        print(f"Failed to get a valid JSON plan from the AI. Error: {e}")
+        print(f"Failed to get a valid response from the AI. Error: {e}")
         print("AI's raw response was:")
         print(response.text)
         errors_encountered += 1
-        return None
+        return None, None
 
 def execute_file_organization(plan, path_map, destination_root):
     """Creates directories and moves files based on the provided plan."""
@@ -169,14 +212,14 @@ def execute_file_organization(plan, path_map, destination_root):
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    # 1. Load data from llm_inputexcelkpi.json
+    # 1. Load data from llm_input.json
     all_docs = load_document_data()
 
     if all_docs:
-        # 2. Get the organization plan from the AI
-        organization_plan = get_organization_plan_from_ai(all_docs)
+        # 2. Get the organization plan and file tree from the AI
+        organization_plan, file_tree = get_organization_plan_from_ai(all_docs)
 
-        if organization_plan:
+        if organization_plan and file_tree:
             # 3. Create a map of filenames to their original paths
             file_path_map = create_file_path_map(all_docs)
 
@@ -192,11 +235,16 @@ if __name__ == "__main__":
                     print(f"    To: {destination_path}")
             print("\n------------------------------------")
 
-            # 5. Ask for confirmation
+            # 5. Display the LLM-generated file tree
+            print("\nVisible File Tree:")
+            print(file_tree)
+            print("\n------------------------------------")
+
+            # 6. Ask for confirmation
             confirm = input("Do you want to apply this organization? (yes/no): ").lower().strip()
 
             if confirm == 'yes':
-                # 6. Execute the plan
+                # 7. Execute the plan
                 execute_file_organization(organization_plan, file_path_map, DESTINATION_ROOT)
             else:
                 print("Operation cancelled by user.")
