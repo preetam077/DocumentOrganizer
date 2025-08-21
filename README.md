@@ -82,9 +82,21 @@ For Tesseract, install the binary:
      DESTINATION_ROOT = r'C:\Users\YourUsername\OrganizedDocuments'
      ```
 
-## 🚀 Usage
+## 🚀 Quick Start
 
-### Step 1: Process Documents
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/preetam077/DocumentOrganizer.git
+```
+
+### Step 2: Navigate to the Directory
+
+```bash
+cd DocumentOrganizer
+```
+
+### Step 3: Process Documents
 
 Run the summarization script to scan and summarize documents:
 
@@ -102,7 +114,7 @@ python summarygenerator.py
   - `llm_input.json`: Summaries for `fileorganizer.py`.
 - Displays a KPI report (e.g., processing success, error rates).
 
-### Step 2: Organize Files
+### Step 4: Organize Files
 
 Run the organization script to create an optimized folder structure:
 
