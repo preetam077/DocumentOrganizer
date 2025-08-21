@@ -51,7 +51,8 @@ supported_extensions = {
 }
 
 # Base directory to scan
-base_path = r'YourDirectoryToScan' #eg. C:\Users\Goku\Developments
+# base_path = r'YourDirectoryToScan' #eg. C:\Users\Goku\Developments
+base_path = os.environ.get('BASE_PATH', r'C:\Users\support2\Developments')
 
 # List to hold paths of supported documents
 supported_files: List[str] = []
@@ -281,5 +282,6 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
