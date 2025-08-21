@@ -56,8 +56,52 @@ def create_file_path_map(document_data):
         path_map[filename] = doc['file_path']
     return path_map
 
-def get_organization_plan_from_ai(document_data):
-    """Sends document info to the AI and requests a file organization plan with a file tree."""
+def get_current_structure_analysis_from_ai(document_data):
+    """Sends document info to the AI and requests an analysis of the current file structure."""
+    global errors_encountered, api_response_time, tokens_used
+    documents_str = "\n".join([
+        f"- File Path: {doc['file_path']}\n  Type: {doc.get('type', 'N/A')}\n  Summary: {doc['summary']}\n"
+        for doc in document_data
+    ])
+
+    prompt = f"""
+    You are an expert file organization assistant. Your task is to analyze the current file structure based on the provided file paths, types, and summaries, explain why the existing placement and structure may not be the best optimized, and convince the user that a new organization would be beneficial.
+
+    **File Information:**
+    {documents_str}
+
+    **Instructions:**
+    Respond ONLY with a concise analysis (200-400 words) that includes:
+    - A description of the current structure (e.g., how files are grouped, any patterns in directories).
+    - Why it may not be optimal (e.g., scattered files, lack of logical grouping by project/year/topic, redundancy, difficulty in navigation).
+    - Suggestions for improvement (high-level, without providing the full plan yet).
+    - A convincing argument on the benefits of reorganizing (e.g., easier access, better scalability, reduced search time).
+
+    Do not provide a JSON plan, file tree, or any reorganization details yet. Focus on analysis and persuasion.
+    """
+
+    print("Asking the AI to analyze the current file structure... (This may take a moment)")
+    try:
+        start_api_time = time.time()
+        response = model.generate_content(prompt)
+        api_response_time += time.time() - start_api_time
+        response_text = response.text.strip()
+
+        # Estimate tokens
+        input_tokens = len(prompt) // 4
+        output_tokens = len(response_text) // 4
+        tokens_used += input_tokens + output_tokens
+        return response_text
+    except Exception as e:
+        print(f"\n--- Error ---")
+        print(f"Failed to get a valid response from the AI. Error: {e}")
+        print("AI's raw response was:")
+        print(response.text if 'response' in locals() else "No response")
+        errors_encountered += 1
+        return None
+
+def get_organization_plan_from_ai(document_data, current_analysis):
+    """Sends document info and previous analysis to the AI and requests a file organization plan with a file tree."""
     global ai_plan_valid, errors_encountered, api_response_time, tokens_used
     documents_str = "\n".join([
         f"- File: {os.path.basename(doc['file_path'])}\n  Summary: {doc['summary']}\n"
@@ -65,51 +109,32 @@ def get_organization_plan_from_ai(document_data):
     ])
 
     prompt = f"""
-    You are an expert file organization assistant. Your task is to organize the files listed below into a logical folder structure and provide both a JSON plan and an ASCII file tree representation.
+    You are an expert file organization assistant. Based on the following analysis of the current file structure, your task is to organize the files listed below into a logical folder structure and provide a JSON plan, an ASCII file tree representation, and a reasoning section explaining the organization.
 
-    Analyze the following file summaries and create a file organization plan. The plan should group files by project, year, topic, or other relevant criteria.
+    **Previous Analysis of Current Structure:**
+    {current_analysis}
 
     **File Information:**
     {documents_str}
 
     **Instructions:**
-    Respond ONLY with a single output containing two sections, separated clearly. Do not include any additional text, explanations, or markdown formatting outside the specified structure.
+    Respond ONLY with a single output containing three sections, separated clearly. Do not include any additional text, explanations, or markdown formatting outside the specified structure.
 
     1. **JSON Plan**:
        - A JSON object where each key is the proposed new directory path (e.g., "Case_Studies/2020_Grimmen_Vegetation").
        - Each value is a list of filenames (e.g., ["Case Study_Cutting Vegetation_2020.docx", "Fassade nach Cutting.png"]) to be moved into that directory.
        - Use forward slashes (/) for directory paths.
-       - Example:
-        ```json
-        {{
-          " Case_Studies/2018_Cadolzburg_Degradation": [
-            "Case Study_Cadolzburg_v1.docx",
-            "ZAE_Modulliste.pdf"
-          ],
-          "Case_Studies/2019_Umrath_Performance": [
-            "Plant Performance Report.docx",
-            "Plant Performance Report_2019-08-16.docx",
-            "Use case Umrath.xlsx"
-          ]
-        }}
-        ```
+       - Ensure the plan addresses issues identified in the previous analysis.
 
     2. **ASCII File Tree**:
        - After the JSON, include a line with exactly "-----" to separate sections.
-       - Then, provide an ASCII file tree representation of the same structure, listing all directories and files.
+       - Provide an ASCII file tree representation of the same structure, listing all directories and files.
        - Use ├── for branches, └── for the last item in a directory, and │   for vertical alignment.
        - Indent subdirectories and files appropriately (e.g., two spaces per level).
-       - Example:
-         ```
-         -----
-         Case_Studies/
-         ├── 2018_Cadolzburg/
-         │   ├── Case Study_Cadolzburg_v1.docx
-         │   └── ZAE_Modulliste.pdf
-         ├── 2020_Grimmen_Vegetation/
-         │   ├── Case Study_Cutting Vegetation_2020.docx
-         │   └── Fassade nach Cutting.png
-         ```
+
+    3. **Reasoning**:
+       - After the file tree, include another line with exactly "-----" to separate sections.
+       - Provide a concise explanation (100-200 words) of why this organization plan was chosen, how it addresses the issues in the previous analysis, and why it is logical based on the file summaries. Focus on the grouping criteria (e.g., project, year, topic).
 
     **Output Format**:
     ```json
@@ -126,38 +151,41 @@ def get_organization_plan_from_ai(document_data):
       │   ├── Case Study_Cadolzburg_v1.docx
       │   └── ZAE_Modulliste.pdf
       ...
+    -----
+    The files are organized by project and year to address the scattered structure identified in the analysis. ...
     ```
 
-    Ensure all files from the input are included in both the JSON and the file tree, with consistent directory structures.
+    Ensure all files from the input are included in both the JSON and the file tree, with consistent directory structures, and that the reasoning aligns with the chosen organization and the previous analysis.
     """
 
-    print("Asking the AI to generate an organization plan and file tree... (This may take a moment)")
+    print("Asking the AI to generate an organization plan, file tree, and reasoning... (This may take a moment)")
     try:
         start_api_time = time.time()
         response = model.generate_content(prompt)
-        api_response_time = time.time() - start_api_time
+        api_response_time += time.time() - start_api_time
         response_text = response.text.strip().replace('```json', '').replace('```', '')
 
-        # Split the response into JSON and file tree
-        json_part, file_tree = response_text.split('-----', 1)
-        json_part = json_part.strip()
-        file_tree = file_tree.strip()
+        # Split the response into JSON, file tree, and reasoning
+        parts = response_text.split('-----', 2)
+        if len(parts) != 3:
+            raise ValueError("Invalid response format: Expected three sections separated by '-----'.")
+        json_part, file_tree, reasoning = [part.strip() for part in parts]
 
         # Parse the JSON plan
         plan = json.loads(json_part)
         ai_plan_valid = True
-        # Estimate tokens (fallback if API metadata unavailable)
+        # Estimate tokens
         input_tokens = len(prompt) // 4
         output_tokens = len(response_text) // 4
-        tokens_used = input_tokens + output_tokens
-        return plan, file_tree
+        tokens_used += input_tokens + output_tokens
+        return plan, file_tree, reasoning
     except (json.JSONDecodeError, Exception) as e:
         print(f"\n--- Error ---")
         print(f"Failed to get a valid response from the AI. Error: {e}")
         print("AI's raw response was:")
         print(response.text)
         errors_encountered += 1
-        return None, None
+        return None, None, None
 
 def execute_file_organization(plan, path_map, destination_root):
     """Creates directories and moves files based on the provided plan."""
@@ -216,38 +244,55 @@ if __name__ == "__main__":
     all_docs = load_document_data()
 
     if all_docs:
-        # 2. Get the organization plan and file tree from the AI
-        organization_plan, file_tree = get_organization_plan_from_ai(all_docs)
+        # 2. Get the analysis of the current structure from the AI
+        current_analysis = get_current_structure_analysis_from_ai(all_docs)
 
-        if organization_plan and file_tree:
-            # 3. Create a map of filenames to their original paths
-            file_path_map = create_file_path_map(all_docs)
-
-            # 4. Display the plan and file move information
-            print("\n--- Proposed Organization Plan ---")
-            for directory, files in organization_plan.items():
-                print(f"\nFolder: {directory}")
-                for f in files:
-                    original_path = file_path_map.get(f, "Not found")
-                    destination_path = os.path.join(DESTINATION_ROOT, directory, f)
-                    print(f"  File: {f}")
-                    print(f"    From: {original_path}")
-                    print(f"    To: {destination_path}")
+        if current_analysis:
+            # 3. Display the analysis
+            print("\n--- Analysis of Current File Structure ---")
+            print(current_analysis)
             print("\n------------------------------------")
 
-            # 5. Display the LLM-generated file tree
-            print("\nVisible File Tree:")
-            print(file_tree)
-            print("\n------------------------------------")
+            # 4. Ask for confirmation to proceed with reorganization
+            confirm_analysis = input("Does this analysis make sense? Would you like me to propose a new plan? (yes/no): ").lower().strip()
 
-            # 6. Ask for confirmation
-            confirm = input("Do you want to apply this organization? (yes/no): ").lower().strip()
+            if confirm_analysis == 'yes':
+                # 5. Get the organization plan, file tree, and reasoning from the AI
+                organization_plan, file_tree, reasoning = get_organization_plan_from_ai(all_docs, current_analysis)
 
-            if confirm == 'yes':
-                # 7. Execute the plan
-                execute_file_organization(organization_plan, file_path_map, DESTINATION_ROOT)
+                if organization_plan and file_tree and reasoning:
+                    # 6. Create a map of filenames to their original paths
+                    file_path_map = create_file_path_map(all_docs)
+
+                    # 7. Display the plan and file move information
+                    print("\n--- Proposed Organization Plan ---")
+                    for directory, files in organization_plan.items():
+                        print(f"\nFolder: {directory}")
+                        for f in files:
+                            original_path = file_path_map.get(f, "Not found")
+                            destination_path = os.path.join(DESTINATION_ROOT, directory, f)
+                            print(f"  File: {f}")
+                            print(f"    From: {original_path}")
+                            print(f"    To: {destination_path}")
+                    print("\n------------------------------------")
+
+                    # 8. Display the LLM-generated file tree and reasoning
+                    print("\nVisible File Tree:")
+                    print(file_tree)
+                    print("\nReasoning for Organization Plan:")
+                    print(reasoning)
+                    print("\n------------------------------------")
+
+                    # 9. Ask for confirmation to apply the plan
+                    confirm_plan = input("Do you want to apply this organization? (yes/no): ").lower().strip()
+
+                    if confirm_plan == 'yes':
+                        # 10. Execute the plan
+                        execute_file_organization(organization_plan, file_path_map, DESTINATION_ROOT)
+                    else:
+                        print("Organization application cancelled by user.")
             else:
-                print("Operation cancelled by user.")
+                print("Reorganization cancelled by user.")
 
     # Calculate KPIs
     total_processing_time = time.time() - start_time
@@ -264,13 +309,13 @@ if __name__ == "__main__":
     }
 
     # Save KPI report
-    kpi_output_file = 'fileorganizerkpi.json'
-    try:
-        with open(kpi_output_file, 'w', encoding='utf-8') as f:
-            json.dump(kpi_report, f, ensure_ascii=False, indent=4)
-        print(f"\nKPI report saved to {kpi_output_file}")
-    except Exception as e:
-        print(f"Error saving {kpi_output_file}: {str(e)}")
+    # kpi_output_file = 'fileorganizerkpi.json'
+    # try:
+    #     with open(kpi_output_file, 'w', encoding='utf-8') as f:
+    #         json.dump(kpi_report, f, ensure_ascii=False, indent=4)
+    #     print(f"\nKPI report saved to {kpi_output_file}")
+    # except Exception as e:
+    #     print(f"Error saving {kpi_output_file}: {str(e)}")
 
     # Print KPI report
     print("\n=== KPI Report ===")
