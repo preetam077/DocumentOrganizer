@@ -51,7 +51,7 @@ supported_extensions = {
 }
 
 # Base directory to scan
-base_path = r'PutYourDirectoryHere' #eg. C:\Users\Goku\Developments
+base_path = r'YourDirectoryToScan' #eg. C:\Users\Goku\Developments
 
 # List to hold paths of supported documents
 supported_files: List[str] = []
@@ -82,6 +82,7 @@ for root, _, files in os.walk(base_path):
                 print(f"  -> OCR may be applied for this file.")
 
 print(f"\nTotal supported documents found: {len(supported_files)}")
+
 if not supported_files:
     print("No supported documents found. Exiting.")
     exit()
@@ -134,16 +135,19 @@ def extract_excel_text(file_path: str) -> str:
         xl = pd.ExcelFile(file_path)
         all_text = []
         for sheet_name in xl.sheet_names:
+            print(f"Processing sheet: {sheet_name} in {file_path}")
             df = pd.read_excel(file_path, sheet_name=sheet_name)
-            # Convert all cells to strings, handling NaN and other types
-            df = df.astype(str).replace('nan', '').replace('', 'None')
-            # Extract headers
-            headers = ", ".join(df.columns.tolist())
+            # Convert all cells to strings, handling NaN
+            df = df.fillna('').astype(str)
+            # Extract headers, ensuring all column names are strings (fixes the float issue)
+            headers = ", ".join(str(col) for col in df.columns if str(col).strip())  # Skip empty columns if desired
             all_text.append(f"Sheet: {sheet_name}")
             all_text.append(f"Headers: {headers}")
-            # Extract cell values (all rows, but join as comma-separated for summary)
+            # Debug: Print column types to confirm
+            # print("Column name types:", [type(col) for col in df.columns])
+            # Extract cell values
             for _, row in df.iterrows():
-                row_text = ", ".join([val for val in row if val != 'None'])
+                row_text = ", ".join(str(val) for val in row if val.strip())  # Use str(val) and skip empty
                 if row_text:
                     all_text.append(row_text)
         return "\n".join(all_text)
@@ -256,13 +260,13 @@ kpi_report = {
 }
 
 # Save KPI report
-kpi_output_file = 'summarygeneratorkpi.json'
-try:
-    with open(kpi_output_file, 'w', encoding='utf-8') as f:
-        json.dump(kpi_report, f, ensure_ascii=False, indent=4)
-    print(f"\nKPI report saved to {kpi_output_file}")
-except Exception as e:
-    print(f"Error saving {kpi_output_file}: {str(e)}")
+# kpi_output_file = 'summarygeneratorkpi.json'
+# try:
+#     with open(kpi_output_file, 'w', encoding='utf-8') as f:
+#         json.dump(kpi_report, f, ensure_ascii=False, indent=4)
+#     print(f"\nKPI report saved to {kpi_output_file}")
+# except Exception as e:
+#     print(f"Error saving {kpi_output_file}: {str(e)}")
 
 # Print KPI report
 print("\n=== KPI Report ===")
@@ -277,3 +281,5 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
+
