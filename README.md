@@ -1,6 +1,25 @@
-# Document Organization and Summarization System
+# DocumentOrganizer
 
-A robust AI-powered pipeline that scans directories, processes various document formats, generates intelligent summaries, and organizes files into an optimized folder structure using Google's Gemini AI.
+An AI-powered tool that scans, summarizes, and organizes documents such as PDFs, DOCX, images, and more. Leveraging Google's Gemini AI and advanced NLP techniques, it extracts metadata, generates concise summaries, and creates logical folder structures to save time for researchers, professionals, and students. Easy to set up, highly configurable, and designed for educational and research purposes.
+
+## 📑 Overview
+
+`DocumentOrganizer` is a two-part Python-based pipeline:
+
+- **summarygenerator.py**: Scans a directory for supported file types, extracts text and metadata, generates summaries using SentenceTransformers, and produces embeddings for AI analysis.
+- **fileorganizer.py**: Uses Google's Gemini AI to analyze document summaries, proposes an optimized folder structure, and moves files after user confirmation.
+
+The tool supports a wide range of file formats, including documents (PDF, DOCX, PPTX, XLSX), images (PNG, JPEG, etc.), and audio (WAV, MP3), with optional OCR for scanned documents.
+
+## ✨ Features
+
+- **Multi-Format Support**: Processes PDFs, DOCX, PPTX, XLSX, HTML, Markdown, images (PNG, TIFF, JPEG, JPG, GIF, BMP), and audio (WAV, MP3).
+- **AI-Powered Summarization**: Generates concise summaries using the `all-MiniLM-L6-v2` SentenceTransformer model with cosine similarity for relevance.
+- **Smart File Organization**: Uses Gemini AI (`gemini-2.5-flash`) to propose logical folder structures based on document content, with JSON plans and ASCII file trees.
+- **Metadata Extraction**: Captures titles, authors, and creation dates where available.
+- **OCR Capabilities**: Extracts text from images and scanned PDFs using EasyOCR or Tesseract (optional).
+- **Performance Tracking**: Generates KPI reports for processing success, error rates, processing times, and API usage.
+- **User Confirmation**: Ensures safe file reorganization with user approval at critical steps.
 
 ## 📁 Repository Structure
 
@@ -8,115 +27,80 @@ A robust AI-powered pipeline that scans directories, processes various document 
 .
 ├── summarygenerator.py        # Scans directories, extracts metadata, and generates summaries
 ├── fileorganizer.py           # AI-driven file organization with JSON plans and ASCII file trees
-├── llm_input.json             # Generated metadata and summaries for AI analysis
+├── llm_input.json             # Metadata and summaries for AI analysis
 ├── processed_documents.json   # Full processing results with embeddings
-└── README.md                  # This file
+└── README.md                  # Project documentation
 ```
-
-## ✨ Features
-
-- **Multi-Format Support**: Processes PDF, DOCX, PPTX, XLSX, HTML, Markdown, and images (PNG, TIFF, JPEG, JPG, GIF, BMP)
-- **AI-Powered Summarization**: Creates concise summaries using SentenceTransformers and cosine similarity
-- **Smart File Organization**: Uses Gemini AI to propose logical folder structures based on document content
-- **Metadata Extraction**: Extracts titles, authors, and creation dates where available
-- **OCR Capabilities**: Supports text extraction from images and scanned PDFs using EasyOCR or Tesseract
-- **KPI Tracking**: Monitors performance metrics like processing success, error rates, and API response times
 
 ## 🛠️ Installation
 
 ### Prerequisites
 
-- Python 3.8+
-- Tesseract OCR (optional, for image processing)
-- Google API key for Gemini AI access
+- **Python**: 3.8 or higher
+- **Tesseract OCR**: Required for OCR with `pytesseract` (optional)
+- **Google API Key**: Obtain from [Google AI Studio](https://aistudio.google.com/) for Gemini AI access
 
 ### Install Dependencies
 
 ```bash
 pip install docling docling-core sentence-transformers scikit-learn nltk google-generativeai pandas
-pip install docling[easyocr]  # Optional: for EasyOCR support
-pip install docling[tesseract]  # Optional: for Tesseract support
+pip install docling[easyocr]   # Optional: for EasyOCR support
+pip install docling[tesseract] # Optional: for Tesseract support
 ```
 
-### API Setup
+For Tesseract, install the binary:
+- **Windows**: Download from [Tesseract at UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki) and add to PATH.
+- **Linux/macOS**: Install via package manager (e.g., `sudo apt install tesseract-ocr` or `brew install tesseract`).
 
-1. Obtain a Google API key from Google AI Studio.
-2. Set the API key as an environment variable:
+### API and Directory Setup
 
-   **Linux/macOS**:
-
+1. **Set Environment Variables**:
    ```bash
+   # Linux/macOS
    export GOOGLE_API_KEY="your_api_key"
-   ```
+   export BASE_PATH="/path/to/source/directory"
+   export DESTINATION_ROOT="/path/to/output/directory"
 
-   **Windows (Command Prompt)**:
-
-   ```bash
+   # Windows (Command Prompt)
    set GOOGLE_API_KEY=your_api_key
-   ```
+   set BASE_PATH=C:\path\to\source\directory
+   set DESTINATION_ROOT=C:\path\to\output\directory
 
-   **Windows (PowerShell)**:
-
-   ```bash
+   # Windows (PowerShell)
    $env:GOOGLE_API_KEY="your_api_key"
+   $env:BASE_PATH="C:\path\to\source\directory"
+   $env:DESTINATION_ROOT="C:\path\to\output\directory"
    ```
 
-### Directory Configuration
-
-Set the source and destination directories as environment variables:
-
-**Linux/macOS**:
-
-```bash
-export BASE_PATH="/your/target/directory"
-export DESTINATION_ROOT="/your/output/directory"
-```
-
-**Windows (Command Prompt)**:
-
-```bash
-set BASE_PATH=C:\Your\Target\Directory
-set DESTINATION_ROOT=C:\Your\Output\Directory
-```
-
-**Windows (PowerShell)**:
-
-```bash
-$env:BASE_PATH="C:\Your\Target\Directory"
-$env:DESTINATION_ROOT="C:\Your\Output\Directory"
-```
-
-Alternatively, edit the variables directly in the scripts:
-
-In `summarygenerator.py`:
-
-```python
-base_path = r'C:\Users\support2\Developments'  # Set to your source directory
-```
-
-In `fileorganizer.py`:
-
-```python
-DESTINATION_ROOT = r'C:\Users\support2\OrganizedDocuments1'  # Set to your output directory
-```
+2. **Alternatively, Edit Scripts**:
+   - In `summarygenerator.py`:
+     ```python
+     base_path = r'C:\Users\YourUsername\Documents'
+     ```
+   - In `fileorganizer.py`:
+     ```python
+     DESTINATION_ROOT = r'C:\Users\YourUsername\OrganizedDocuments'
+     ```
 
 ## 🚀 Usage
 
 ### Step 1: Process Documents
 
-Run the summarization script to scan and process documents:
+Run the summarization script to scan and summarize documents:
 
 ```bash
 python summarygenerator.py
 ```
 
-This will:
-- Scan the configured directory (`BASE_PATH`) for supported files
-- Extract text and metadata using Docling (for most formats) and pandas (for XLSX)
-- Apply OCR to images and scanned PDFs if EasyOCR or Tesseract is installed
-- Generate semantic embeddings and summaries
-- Save results to `llm_input.json` (for AI organization) and `processed_documents.json` (full results with embeddings)
-- Display a KPI report with metrics like processing success and error rates
+**What it does**:
+- Scans `BASE_PATH` for supported files.
+- Extracts text and metadata using `docling` (most formats) or `pandas` (XLSX).
+- Applies OCR to images and scanned PDFs if enabled.
+- Generates embeddings and summaries using SentenceTransformers.
+- Saves results to:
+  - `processed_documents.json`: Full metadata, embeddings, and summaries.
+  - `llm_input.json`: Summaries for `fileorganizer.py`.
+- Displays a KPI report (e.g., processing success, error rates).
 
 ### Step 2: Organize Files
 
@@ -126,39 +110,40 @@ Run the organization script to create an optimized folder structure:
 python fileorganizer.py
 ```
 
-This will:
-- Load `llm_input.json` and analyze document summaries using Gemini AI
-- Generate a JSON organization plan and ASCII file tree
-- Display the proposed structure and prompt for confirmation
-- Move files to the new structure under `DESTINATION_ROOT`
-- Display a KPI report with metrics like file movement success and API response times
+**What it does**:
+- Loads `llm_input.json` and uses Gemini AI to analyze document summaries.
+- Proposes a JSON organization plan and ASCII file tree.
+- Displays the current structure analysis, proposed plan, and reasoning.
+- Prompts for user confirmation before moving files to `DESTINATION_ROOT`.
+- Displays a KPI report (e.g., file movement success, API response times).
+
+**⚠️ Warning**: Back up files before running `fileorganizer.py`, as it moves files to new locations.
 
 ## 📊 Supported File Types
 
-| Category   | Formats                            |
-|------------|------------------------------------|
-| Documents  | PDF, DOCX, PPTX, XLSX, HTML, ADOC, MD |
-| Images     | PNG, TIFF, JPEG, JPG, GIF, BMP     |
-| Audio      | WAV, MP3                           |
+| Category  | Formats                              |
+|-----------|--------------------------------------|
+| Documents | PDF, DOCX, PPTX, XLSX, HTML, ADOC, MD |
+| Images    | PNG, TIFF, JPEG, JPG, GIF, BMP       |
+| Audio     | WAV, MP3                             |
 
 ## 🔧 How It Works
 
-1. **Directory Scanning**: Recursively scans for supported file types
-2. **Content Extraction**: Uses Docling for most formats and pandas for Excel files
-3. **OCR Processing**: Extracts text from images and scanned PDFs if OCR tools are available
-4. **Embedding & Summarization**: Generates embeddings with SentenceTransformers and creates summaries based on cosine similarity
-5. **AI Organization**: Gemini AI analyzes summaries to propose a logical folder structure
-6. **File Movement**: Moves files to the AI-recommended structure after user confirmation
-7. **KPI Reporting**: Tracks performance metrics for both processing and organization
+1. **Directory Scanning**: Recursively scans `BASE_PATH` for supported file types.
+2. **Content Extraction**: Uses `docling` for most formats, `pandas` for Excel, and OCR for images/PDFs.
+3. **Summarization**: Generates embeddings with SentenceTransformers and selects top sentences based on cosine similarity.
+4. **AI Organization**: Gemini AI analyzes summaries to propose a folder structure (e.g., by project or year).
+5. **File Movement**: Moves files to `DESTINATION_ROOT` after user approval.
+6. **KPI Reporting**: Tracks metrics like success rates, processing times, and API usage.
 
 ## 📋 Output Files
 
-- `llm_input.json`: Metadata and summaries for AI organization
-- `processed_documents.json`: Full processing results, including embeddings
+- **llm_input.json**: Metadata and summaries for AI organization.
+- **processed_documents.json**: Full processing results, including embeddings.
 
 ## 📊 KPI Reports
 
-Both scripts generate KPI reports displayed in the console:
+Both scripts output KPI reports to the console:
 
 **summarygenerator.py**:
 - Document Processing Success Rate
@@ -181,23 +166,34 @@ Both scripts generate KPI reports displayed in the console:
 
 ## 🐛 Troubleshooting
 
-- **Missing API Key**: Ensure `GOOGLE_API_KEY` is set
-- **OCR Issues**: Install EasyOCR or Tesseract and add Tesseract to your system PATH
-- **Permission Errors**: Verify read/write access to source and destination directories
-- **JSON Errors**: Check `llm_input.json` for valid formatting
-- **Large Files**: Increase processing time for large documents
-- **Dependencies**: Ensure all required packages are installed
+- **Missing API Key**: Ensure `GOOGLE_API_KEY` is set correctly.
+- **OCR Issues**: Verify Tesseract or EasyOCR installation and PATH configuration.
+- **Permission Errors**: Check read/write access to `BASE_PATH` and `DESTINATION_ROOT`.
+- **JSON Errors**: Validate `llm_input.json` for correct formatting.
+- **Large Files**: Allow extra processing time for large documents.
+- **Dependencies**: Run `pip install -r requirements.txt` to ensure all packages are installed.
 
-For additional help, review KPI reports or check dependency configurations.
+For detailed logs, review the console output or KPI reports.
 
 ## 📄 License
 
-Provided for educational and research purposes. Comply with Google's API terms for Gemini AI usage.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details. Note: Usage of Google's Gemini AI must comply with [Google's API terms](https://cloud.google.com/terms).
 
 ## 🤝 Contributing
 
-- Report bugs or request features via issues
-- Submit pull requests with improvements
-- Suggest documentation enhancements
+We welcome contributions! To contribute:
+- Report bugs or request features via [GitHub Issues](https://github.com/preetam077/DocumentOrganizer/issues).
+- Submit pull requests with improvements or fixes.
+- Suggest documentation enhancements.
 
-**⚠️ Warning**: Back up files before running `fileorganizer.py`, as it physically moves files to new locations.
+Please ensure code follows PEP 8 style guidelines and includes appropriate tests.
+
+## 📬 Contact
+
+For questions or support, contact the maintainer via [GitHub Issues](https://github.com/preetam077/DocumentOrganizer/issues) or email at [your-email@example.com].
+
+## 🙏 Acknowledgments
+
+- [Docling](https://github.com/docling/docling) for document processing.
+- [SentenceTransformers](https://github.com/UKPLab/sentence-transformers) for embeddings and summarization.
+- [Google Gemini AI](https://aistudio.google.com/) for intelligent file organization.
