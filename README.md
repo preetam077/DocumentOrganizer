@@ -52,7 +52,7 @@ pip install docling[tesseract]  # Optional: for Tesseract support
    **Windows (Command Prompt)**:
 
    ```bash
-   set GOOGLE_API_KEY="your_api_key"
+   set GOOGLE_API_KEY=your_api_key
    ```
 
    **Windows (PowerShell)**:
