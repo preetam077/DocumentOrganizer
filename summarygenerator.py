@@ -17,6 +17,7 @@ import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
+BASE_PATH = Path(os.getenv("BASE_PATH", "C:/Users/support2/Documents"))
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -285,6 +286,7 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
 
