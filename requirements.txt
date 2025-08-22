@@ -7,6 +7,7 @@ google-generativeai
 pandas
 easyocr
 pytesseract
+python-dotenv
 # Note: pytesseract requires Tesseract OCR binary to be installed separately.
 # For Windows, download from https://github.com/UB-Mannheim/tesseract/wiki
 # For Linux: sudo apt install tesseract-ocr
