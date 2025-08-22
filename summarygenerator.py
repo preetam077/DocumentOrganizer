@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 load_dotenv()
-BASE_PATH = Path(os.getenv("BASE_PATH", "C:/Users/support2/Documents"))
+BASE_PATH = Path(os.getenv("BASE_PATH"))
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -287,6 +287,7 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
 
