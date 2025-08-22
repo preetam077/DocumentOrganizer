@@ -19,8 +19,9 @@ model = genai.GenerativeModel('gemini-2.5-flash')
 
 #DESTINATION_ROOT = '#TheDirectyWhereYouWantToPerformAction#' #eg. C:\\Users\\Goku\\OrganizedDocuments
 #DESTINATION_ROOT = os.environ.get('DESTINATION_ROOT', 'C:\\Users\\support2\\OrganizedDocuments1')
-raw_dest = os.environ.get('DESTINATION_ROOT', 'C:\\Users\\support2\\OrganizedDocuments1')
-DESTINATION_ROOT = raw_dest.replace('\\', '\\\\')
+#raw_dest = os.environ.get('DESTINATION_ROOT', 'C:\\Users\\support2\\OrganizedDocuments1')
+#raw_dest = os.getenv('DESTINATION_ROOT', 'C:\\Users\\support2\\OrganizedDocuments1')
+DESTINATION_ROOT = os.getenv('DESTINATION_ROOT', 'C:\\Users\\support2\\OrganizedDocuments1')  #raw_dest.replace('\\', '\\\\')
 
 # KPI tracking variables
 start_time = time.time()
@@ -337,5 +338,6 @@ if __name__ == "__main__":
     print("=================\n")
 
     print("Processing complete.")
+
 
 
