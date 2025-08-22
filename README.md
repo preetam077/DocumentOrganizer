@@ -68,7 +68,7 @@ The tool supports a wide range of file formats, including documents (PDF, DOCX, 
    ```
 4. Configure environment variables:
    ```bash
-   cp .env.example .env
+   copy .env.example .env
    ```
    Edit `.env` to include:
    - `GOOGLE_API_KEY`: Your Gemini AI API key 🔑
