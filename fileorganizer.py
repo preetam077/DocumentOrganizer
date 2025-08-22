@@ -128,7 +128,7 @@ def get_organization_plan_from_ai(document_data, current_analysis):
     {documents_str}
 
     **Instructions:**
-    Respond ONLY with a single output containing three sections, separated clearly. Do not include any additional text, explanations, or markdown formatting outside the specified structure.
+    Respond ONLY with a single output containing three sections, separated clearly. Do not include any additional text, explanations, or markdown formatting outside the specified structure.DONOT CHANGE THE NAME OF FILES KEEP THEM AS IT IS
 
     1. **JSON Plan**:
        - A JSON object where each key is the proposed new directory path (e.g., "Case_Studies/2020_Grimmen_Vegetation").
@@ -341,6 +341,7 @@ if __name__ == "__main__":
     print("=================\n")
 
     print("Processing complete.")
+
 
 
 
