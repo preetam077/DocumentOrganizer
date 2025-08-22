@@ -9,7 +9,7 @@ from pathlib import Path
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # No default, as API key is required
-DESTINATION_ROOT = Path(os.getenv("DESTINATION_ROOT", "C:/Users/support2/OrganizedDocuments1"))
+DESTINATION_ROOT = Path(os.getenv("DESTINATION_ROOT"))
 
 # --- Configuration ---
 api_key = os.getenv("GOOGLE_API_KEY")
@@ -341,6 +341,7 @@ if __name__ == "__main__":
     print("=================\n")
 
     print("Processing complete.")
+
 
 
 
