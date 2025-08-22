@@ -4,6 +4,9 @@ import shutil
 import google.generativeai as genai
 import time
 from collections import defaultdict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configuration ---
 api_key = os.getenv("GOOGLE_API_KEY")
@@ -334,4 +337,5 @@ if __name__ == "__main__":
     print("=================\n")
 
     print("Processing complete.")
+
 
