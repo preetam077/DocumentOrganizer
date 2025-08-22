@@ -14,6 +14,9 @@ from torch.utils.data import dataloader
 import time
 from collections import defaultdict
 import uuid
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Disable the specific warning
 warnings.filterwarnings("ignore", 
@@ -282,6 +285,7 @@ print(f"Output File Integrity: {kpi_report['output_file_integrity']:.2f}%")
 print("=================\n")
 
 print("Processing complete.")
+
 
 
 
